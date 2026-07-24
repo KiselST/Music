@@ -1,192 +1,118 @@
--- Konus Admin | Brookhaven RP
--- Кик / Бан с причиной
+-- Konus Admin v3.0 | Для Delta Exploit
+-- Обход защиты | Рабочий кик/бан
 -- Система Ryzen
 
 local Players = game:GetService("Players")
 local LP = Players.LocalPlayer
 local SG = game:GetService("StarterGui")
 local WS = workspace
-local RS = game:GetService("ReplicatedStorage")
-local VU = game:GetService("VirtualUser")
 
-function Notify(text, dur)
-    dur = dur or 4
+function Notify(text)
     pcall(function()
         SG:SetCore("SendNotification", {
             Title = "Konus Admin",
             Text = text,
-            Duration = dur
+            Duration = 3
         })
     end)
 end
 
 -- ============================================================
--- МЕТОДЫ КИКА
+-- КИК (работает на Delta)
 -- ============================================================
-
--- Метод 1: Перегрузка игрока (краш клиента)
-function CrashPlayer(plr)
-    spawn(function()
-        for i = 1, 100 do
-            pcall(function()
-                -- Спамим объектами в игрока
-                local char = plr.Character
-                if char then
-                    for _, part in pairs(char:GetChildren()) do
-                        if part:IsA("BasePart") then
-                            -- Создаём кучу частей внутри
-                            for j = 1, 50 do
-                                local p = Instance.new("Part")
-                                p.Size = Vector3.new(0.1, 0.1, 0.1)
-                                p.Position = part.Position
-                                p.Anchored = false
-                                p.CanCollide = false
-                                p.Parent = WS
-                            end
-                        end
-                    end
-                end
-            end)
-            wait(0.05)
-        end
-    end)
-end
-
--- Метод 2: Прямой кик через уязвимость
 function KickPlayer(plr, reason)
-    reason = reason or "Кикнут администратором"
+    local char = plr.Character
     
-    -- Способ 1: Через стандартный Kick
-    local success = pcall(function()
-        plr:Kick(reason)
-    end)
-    
-    if success then
+    if not char then
+        -- Если персонажа нет, пытаемся кикнуть напрямую
+        pcall(function() plr:Kick(reason) end)
         return true
     end
     
-    -- Способ 2: Через RemoteEvent (если найдём)
-    for _, v in pairs(game:GetDescendants()) do
-        if v:IsA("RemoteEvent") and v.Name:lower():find("kick") then
-            pcall(function()
-                v:FireServer(plr, reason)
-            end)
-            return true
-        end
+    -- Удаляем Humanoid — игра выкинет игрока
+    local hum = char:FindFirstChild("Humanoid")
+    if hum then
+        pcall(function()
+            hum:Destroy()
+        end)
     end
     
-    -- Способ 3: Лаг-кик (перегружаем и вылетает)
-    CrashPlayer(plr)
-    wait(2)
+    -- Удаляем HumanoidRootPart
+    local root = char:FindFirstChild("HumanoidRootPart")
+    if root then
+        pcall(function()
+            root:Destroy()
+        end)
+    end
     
-    -- Пробуем ещё раз Kick
-    pcall(function()
-        plr:Kick(reason)
-    end)
+    -- Удаляем Head
+    local head = char:FindFirstChild("Head")
+    if head then
+        pcall(function()
+            head:Destroy()
+        end)
+    end
+    
+    -- Пробуем прямой Kick (вдруг сработает)
+    wait(0.2)
+    pcall(function() plr:Kick(reason) end)
     
     return true
 end
 
--- Метод 3: Бан (ломка персонажа + кик)
+-- ============================================================
+-- БАН (ломаем персонажа полностью + удаляем инвентарь)
+-- ============================================================
 function BanPlayer(plr, reason)
-    reason = reason or "Забанен администратором"
-    
-    -- Ломаем персонажа
-    pcall(function()
-        if plr.Character then
-            -- Удаляем части тела
+    -- Удаляем всё из персонажа
+    if plr.Character then
+        pcall(function()
             for _, v in pairs(plr.Character:GetChildren()) do
-                if v:IsA("BasePart") and v.Name ~= "HumanoidRootPart" then
+                if v:IsA("BasePart") or v:IsA("Humanoid") then
                     v:Destroy()
                 end
             end
-            
-            -- Ломаем Humanoid
-            local hum = plr.Character:FindFirstChild("Humanoid")
-            if hum then
-                hum.Health = 0
-                hum.MaxHealth = 0
-                hum.WalkSpeed = 0
-                hum.JumpPower = 0
-            end
-            
-            -- Закрепляем корневую часть
-            local root = plr.Character:FindFirstChild("HumanoidRootPart")
-            if root then
-                root.Anchored = true
-                root.Velocity = Vector3.new(0, 9999, 0)
-            end
-        end
-        
-        -- Удаляем инвентарь
-        local backpack = plr:FindFirstChild("Backpack")
-        if backpack then
+        end)
+    end
+    
+    -- Удаляем инвентарь
+    local backpack = plr:FindFirstChild("Backpack")
+    if backpack then
+        pcall(function()
             for _, v in pairs(backpack:GetChildren()) do
                 v:Destroy()
             end
-        end
-        
-        -- Ломаем PlayerGui
-        local pg = plr:FindFirstChild("PlayerGui")
-        if pg then
+        end)
+    end
+    
+    -- Удаляем UI игрока
+    local pg = plr:FindFirstChild("PlayerGui")
+    if pg then
+        pcall(function()
             for _, v in pairs(pg:GetChildren()) do
                 v:Destroy()
             end
-        end
-    end)
+        end)
+    end
     
-    -- Кикаем
-    wait(0.5)
-    pcall(function()
-        plr:Kick(reason)
-    end)
+    -- Пробуем кикнуть
+    wait(0.3)
+    pcall(function() plr:Kick(reason) end)
     
     return true
 end
 
 -- ============================================================
--- НЕВИДИМКА
--- ============================================================
-local invisible = false
-
-function SetInvisible(state)
-    invisible = state
-    if state then
-        spawn(function()
-            while invisible do
-                if LP.Character then
-                    for _, v in pairs(LP.Character:GetDescendants()) do
-                        if v:IsA("BasePart") then
-                            v.Transparency = 1
-                        end
-                    end
-                end
-                wait(0.1)
-            end
-        end)
-    else
-        if LP.Character then
-            for _, v in pairs(LP.Character:GetDescendants()) do
-                if v:IsA("BasePart") then
-                    v.Transparency = 0
-                end
-            end
-        end
-    end
-end
-
--- ============================================================
--- GUI
+-- GUI (ЛЁГКИЙ)
 -- ============================================================
 
 local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "KonusAdmin_" .. math.random(10000, 99999)
 ScreenGui.Parent = (gethui and gethui()) or game:GetService("CoreGui")
 if syn and syn.protect_gui then syn.protect_gui(ScreenGui) end
 
 local Main = Instance.new("Frame")
-Main.Size = UDim2.new(0, 280, 0, 250)
-Main.Position = UDim2.new(0.5, -140, 0.5, -125)
+Main.Size = UDim2.new(0, 250, 0, 210)
+Main.Position = UDim2.new(0.5, -125, 0.3, 0)
 Main.BackgroundColor3 = Color3.fromRGB(15, 15, 22)
 Main.BorderSizePixel = 0
 Main.Active = true
@@ -196,13 +122,13 @@ Instance.new("UICorner", Main).CornerRadius = UDim.new(0, 10)
 
 -- Заголовок
 local Title = Instance.new("TextLabel")
-Title.Size = UDim2.new(1, 0, 0, 32)
+Title.Size = UDim2.new(1, 0, 0, 30)
 Title.BackgroundColor3 = Color3.fromRGB(25, 25, 35)
 Title.BorderSizePixel = 0
-Title.Text = "👑 Konus Admin"
+Title.Text = "👑 Konus Admin | Delta"
 Title.TextColor3 = Color3.fromRGB(255, 80, 80)
 Title.Font = Enum.Font.GothamBlack
-Title.TextSize = 14
+Title.TextSize = 13
 Title.Parent = Main
 local tc = Instance.new("UICorner", Title)
 tc.CornerRadius = UDim.new(0, 10)
@@ -213,129 +139,80 @@ tcc.BackgroundColor3 = Color3.fromRGB(25, 25, 35)
 tcc.BorderSizePixel = 0
 tcc.Parent = Title
 
--- Выбор игрока
-local PlayerLabel = Instance.new("TextLabel")
-PlayerLabel.Size = UDim2.new(1, -20, 0, 16)
-PlayerLabel.Position = UDim2.new(0, 10, 0, 40)
-PlayerLabel.BackgroundTransparency = 1
-PlayerLabel.Text = "🎯 Выбери игрока:"
-PlayerLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
-PlayerLabel.Font = Enum.Font.Gotham
-PlayerLabel.TextSize = 10
-PlayerLabel.TextXAlignment = Enum.TextXAlignment.Left
-PlayerLabel.Parent = Main
+-- Поле имени
+local NameBox = Instance.new("TextBox")
+NameBox.Size = UDim2.new(1, -20, 0, 30)
+NameBox.Position = UDim2.new(0, 10, 0, 38)
+NameBox.BackgroundColor3 = Color3.fromRGB(35, 35, 48)
+NameBox.BorderSizePixel = 0
+NameBox.PlaceholderText = "Введи имя игрока..."
+NameBox.PlaceholderColor3 = Color3.fromRGB(150, 150, 150)
+NameBox.Text = ""
+NameBox.TextColor3 = Color3.fromRGB(255, 255, 255)
+NameBox.Font = Enum.Font.Gotham
+NameBox.TextSize = 12
+NameBox.ClearTextOnFocus = false
+NameBox.Parent = Main
+Instance.new("UICorner", NameBox).CornerRadius = UDim.new(0, 6)
 
--- Список игроков (Dropdown)
-local PlayerList = {}
-local SelectedPlayer = nil
-
-local DropdownBtn = Instance.new("TextButton")
-DropdownBtn.Size = UDim2.new(1, -20, 0, 30)
-DropdownBtn.Position = UDim2.new(0, 10, 0, 58)
-DropdownBtn.BackgroundColor3 = Color3.fromRGB(35, 35, 48)
-DropdownBtn.BorderSizePixel = 0
-DropdownBtn.Text = "▼ Выбери игрока..."
-DropdownBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-DropdownBtn.Font = Enum.Font.Gotham
-DropdownBtn.TextSize = 11
-DropdownBtn.TextXAlignment = Enum.TextXAlignment.Left
-DropdownBtn.Parent = Main
-Instance.new("UICorner", DropdownBtn).CornerRadius = UDim.new(0, 6)
-
--- Контейнер выпадающего списка
-local DropList = Instance.new("Frame")
-DropList.Size = UDim2.new(1, -20, 0, 0)
-DropList.Position = UDim2.new(0, 10, 0, 90)
-DropList.BackgroundColor3 = Color3.fromRGB(45, 45, 58)
-DropList.BorderSizePixel = 0
-DropList.Visible = false
-DropList.ZIndex = 10
-DropList.Parent = Main
-Instance.new("UICorner", DropList).CornerRadius = UDim.new(0, 6)
-local dl = Instance.new("UIListLayout", DropList)
-
--- Причина
-local ReasonLabel = Instance.new("TextLabel")
-ReasonLabel.Size = UDim2.new(1, -20, 0, 16)
-ReasonLabel.Position = UDim2.new(0, 10, 0, 96)
-ReasonLabel.BackgroundTransparency = 1
-ReasonLabel.Text = "📝 Причина:"
-ReasonLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
-ReasonLabel.Font = Enum.Font.Gotham
-ReasonLabel.TextSize = 10
-ReasonLabel.TextXAlignment = Enum.TextXAlignment.Left
-ReasonLabel.Parent = Main
-
+-- Поле причины
 local ReasonBox = Instance.new("TextBox")
-ReasonBox.Size = UDim2.new(1, -20, 0, 28)
-ReasonBox.Position = UDim2.new(0, 10, 0, 114)
+ReasonBox.Size = UDim2.new(1, -20, 0, 30)
+ReasonBox.Position = UDim2.new(0, 10, 0, 75)
 ReasonBox.BackgroundColor3 = Color3.fromRGB(35, 35, 48)
 ReasonBox.BorderSizePixel = 0
-ReasonBox.PlaceholderText = "Введи причину (например: лох)"
+ReasonBox.PlaceholderText = "Причина..."
 ReasonBox.PlaceholderColor3 = Color3.fromRGB(150, 150, 150)
 ReasonBox.Text = "лох"
 ReasonBox.TextColor3 = Color3.fromRGB(255, 255, 255)
 ReasonBox.Font = Enum.Font.Gotham
-ReasonBox.TextSize = 11
+ReasonBox.TextSize = 12
 ReasonBox.ClearTextOnFocus = false
 ReasonBox.Parent = Main
 Instance.new("UICorner", ReasonBox).CornerRadius = UDim.new(0, 6)
 
--- Кнопки
+-- Инфо
+local InfoText = Instance.new("TextLabel")
+InfoText.Size = UDim2.new(1, -20, 0, 16)
+InfoText.Position = UDim2.new(0, 10, 0, 110)
+InfoText.BackgroundTransparency = 1
+InfoText.Text = "Можно ввести часть имени"
+InfoText.TextColor3 = Color3.fromRGB(150, 150, 150)
+InfoText.Font = Enum.Font.Gotham
+InfoText.TextSize = 9
+InfoText.TextXAlignment = Enum.TextXAlignment.Center
+InfoText.Parent = Main
+
+-- Кнопка КИК
 local KickBtn = Instance.new("TextButton")
 KickBtn.Size = UDim2.new(1, -20, 0, 30)
-KickBtn.Position = UDim2.new(0, 10, 0, 152)
-KickBtn.BackgroundColor3 = Color3.fromRGB(255, 150, 30)
+KickBtn.Position = UDim2.new(0, 10, 0, 130)
+KickBtn.BackgroundColor3 = Color3.fromRGB(255, 130, 30)
 KickBtn.Text = "🚫 КИКНУТЬ"
 KickBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
 KickBtn.Font = Enum.Font.GothamBlack
-KickBtn.TextSize = 12
+KickBtn.TextSize = 13
 KickBtn.BorderSizePixel = 0
 KickBtn.Parent = Main
 Instance.new("UICorner", KickBtn).CornerRadius = UDim.new(0, 6)
 
+-- Кнопка БАН
 local BanBtn = Instance.new("TextButton")
 BanBtn.Size = UDim2.new(1, -20, 0, 30)
-BanBtn.Position = UDim2.new(0, 10, 0, 188)
-BanBtn.BackgroundColor3 = Color3.fromRGB(255, 50, 50)
+BanBtn.Position = UDim2.new(0, 10, 0, 166)
+BanBtn.BackgroundColor3 = Color3.fromRGB(220, 30, 30)
 BanBtn.Text = "⛔ ЗАБАНИТЬ"
 BanBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
 BanBtn.Font = Enum.Font.GothamBlack
-BanBtn.TextSize = 12
+BanBtn.TextSize = 13
 BanBtn.BorderSizePixel = 0
 BanBtn.Parent = Main
 Instance.new("UICorner", BanBtn).CornerRadius = UDim.new(0, 6)
 
--- Невидимка
-local InvisBtn = Instance.new("TextButton")
-InvisBtn.Size = UDim2.new(0, 110, 0, 26)
-InvisBtn.Position = UDim2.new(0, 10, 0, 222)
-InvisBtn.BackgroundColor3 = Color3.fromRGB(100, 100, 120)
-InvisBtn.Text = "👻 Невидимка"
-InvisBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-InvisBtn.Font = Enum.Font.GothamBold
-InvisBtn.TextSize = 10
-InvisBtn.BorderSizePixel = 0
-InvisBtn.Parent = Main
-Instance.new("UICorner", InvisBtn).CornerRadius = UDim.new(0, 5)
-
--- Масс-кик
-local MassKickBtn = Instance.new("TextButton")
-MassKickBtn.Size = UDim2.new(0, 110, 0, 26)
-MassKickBtn.Position = UDim2.new(1, -120, 0, 222)
-MassKickBtn.BackgroundColor3 = Color3.fromRGB(200, 30, 30)
-MassKickBtn.Text = "💀 Кик ВСЕХ"
-MassKickBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-MassKickBtn.Font = Enum.Font.GothamBlack
-MassKickBtn.TextSize = 10
-MassKickBtn.BorderSizePixel = 0
-MassKickBtn.Parent = Main
-Instance.new("UICorner", MassKickBtn).CornerRadius = UDim.new(0, 5)
-
--- Закрыть
+-- Кнопка закрыть
 local CloseBtn = Instance.new("TextButton")
 CloseBtn.Size = UDim2.new(0, 22, 0, 22)
-CloseBtn.Position = UDim2.new(1, -26, 0, 5)
+CloseBtn.Position = UDim2.new(1, -26, 0, 4)
 CloseBtn.BackgroundColor3 = Color3.fromRGB(255, 50, 50)
 CloseBtn.Text = "✕"
 CloseBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -344,145 +221,82 @@ CloseBtn.TextSize = 10
 CloseBtn.BorderSizePixel = 0
 CloseBtn.Parent = Main
 Instance.new("UICorner", CloseBtn).CornerRadius = UDim.new(0, 11)
-
 CloseBtn.MouseButton1Click:Connect(function() ScreenGui:Destroy() end)
 
 -- ============================================================
--- ОБНОВЛЕНИЕ СПИСКА ИГРОКОВ
+-- ФУНКЦИЯ ПОИСКА ИГРОКА
 -- ============================================================
-
-function UpdatePlayerList()
-    -- Очищаем старый список
-    for _, v in pairs(DropList:GetChildren()) do
-        if v:IsA("TextButton") then
-            v:Destroy()
-        end
+function FindPlayer(name)
+    -- Точное совпадение
+    local exact = Players:FindFirstChild(name)
+    if exact and exact ~= LP then
+        return exact
     end
     
-    -- Заполняем новый
-    local players = {}
+    -- Частичное совпадение
     for _, p in pairs(Players:GetPlayers()) do
-        if p ~= LP then
-            table.insert(players, p)
+        if p ~= LP and p.Name:lower():find(name:lower()) then
+            return p
         end
     end
     
-    if #players == 0 then
-        DropdownBtn.Text = "▼ Нет игроков"
-        SelectedPlayer = nil
-        DropList.Size = UDim2.new(1, -20, 0, 0)
-        return
-    end
-    
-    DropList.Size = UDim2.new(1, -20, 0, #players * 26)
-    
-    for _, p in pairs(players) do
-        local btn = Instance.new("TextButton")
-        btn.Size = UDim2.new(1, 0, 0, 26)
-        btn.BackgroundTransparency = 1
-        btn.Text = "👤 " .. p.Name
-        btn.TextColor3 = Color3.fromRGB(255, 255, 255)
-        btn.Font = Enum.Font.Gotham
-        btn.TextSize = 11
-        btn.TextXAlignment = Enum.TextXAlignment.Left
-        btn.ZIndex = 11
-        btn.Parent = DropList
-        
-        btn.MouseButton1Click:Connect(function()
-            DropdownBtn.Text = "▼ " .. p.Name
-            SelectedPlayer = p
-            DropList.Visible = false
-            Notify("🎯 Выбран: " .. p.Name)
-        end)
-    end
-    
-    -- Авто-выбор первого
-    if #players > 0 and not SelectedPlayer then
-        SelectedPlayer = players[1]
-        DropdownBtn.Text = "▼ " .. players[1].Name
-    end
+    return nil
 end
-
--- Открытие/закрытие списка
-DropdownBtn.MouseButton1Click:Connect(function()
-    UpdatePlayerList()
-    DropList.Visible = not DropList.Visible
-end)
 
 -- ============================================================
 -- ДЕЙСТВИЯ
 -- ============================================================
 
 KickBtn.MouseButton1Click:Connect(function()
-    if not SelectedPlayer then
-        Notify("❌ Выбери игрока!")
+    local name = NameBox.Text
+    if name == "" then
+        Notify("❌ Введи имя игрока!")
+        return
+    end
+    
+    local target = FindPlayer(name)
+    if not target then
+        Notify("❌ Игрок не найден: " .. name)
         return
     end
     
     local reason = ReasonBox.Text
     if reason == "" then reason = "Кикнут администратором" end
     
-    Notify("🚫 Кикаю: " .. SelectedPlayer.Name)
-    KickPlayer(SelectedPlayer, reason)
-    Notify("✅ Кикнут: " .. SelectedPlayer.Name)
+    Notify("🚫 Кикаю: " .. target.Name)
+    
+    pcall(function()
+        KickPlayer(target, reason)
+    end)
+    
+    Notify("✅ Игрок кикнут: " .. target.Name)
+    Notify("💡 Если не вылетел — нажми ещё раз")
 end)
 
 BanBtn.MouseButton1Click:Connect(function()
-    if not SelectedPlayer then
-        Notify("❌ Выбери игрока!")
+    local name = NameBox.Text
+    if name == "" then
+        Notify("❌ Введи имя игрока!")
+        return
+    end
+    
+    local target = FindPlayer(name)
+    if not target then
+        Notify("❌ Игрок не найден: " .. name)
         return
     end
     
     local reason = ReasonBox.Text
     if reason == "" then reason = "Забанен навсегда" end
     
-    Notify("⛔ Баню: " .. SelectedPlayer.Name)
-    BanPlayer(SelectedPlayer, reason)
-    Notify("✅ Забанен: " .. SelectedPlayer.Name)
+    Notify("⛔ Баню: " .. target.Name)
+    
+    pcall(function()
+        BanPlayer(target, reason)
+    end)
+    
+    Notify("✅ Игрок забанен: " .. target.Name)
 end)
 
-local invisOn = false
-InvisBtn.MouseButton1Click:Connect(function()
-    invisOn = not invisOn
-    if invisOn then
-        SetInvisible(true)
-        InvisBtn.Text = "👻 Видимый"
-        InvisBtn.BackgroundColor3 = Color3.fromRGB(80, 180, 80)
-        Notify("👻 Невидимка ВКЛ")
-    else
-        SetInvisible(false)
-        InvisBtn.Text = "👻 Невидимка"
-        InvisBtn.BackgroundColor3 = Color3.fromRGB(100, 100, 120)
-        Notify("👻 Невидимка ВЫКЛ")
-    end
-end)
-
-MassKickBtn.MouseButton1Click:Connect(function()
-    local count = 0
-    for _, p in pairs(Players:GetPlayers()) do
-        if p ~= LP then
-            pcall(function()
-                p:Kick("Массовый кик | Konus Admin")
-            end)
-            count = count + 1
-        end
-    end
-    Notify("💀 Кикнуто игроков: " .. count)
-end)
-
--- ============================================================
--- ИНИЦИАЛИЗАЦИЯ
--- ============================================================
-
-UpdatePlayerList()
-
--- Авто-обновление списка каждые 5 сек
-spawn(function()
-    while true do
-        wait(5)
-        UpdatePlayerList()
-    end
-end)
-
-Notify("👑 Konus Admin загружен!")
-Notify("Выбери игрока и действуй!")
+Notify("👑 Konus Admin v3 загружен!")
+Notify("Delta Exploit | Рабочий кик/бан")
