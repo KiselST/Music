@@ -1,0 +1,246 @@
+-- Konus Music Player | Brookhaven RP
+-- Система Ryzen | Включение музыки на весь сервер
+
+local Players = game:GetService("Players")
+local LP = Players.LocalPlayer
+local SG = game:GetService("StarterGui")
+
+-- Уведомление
+function Notify(text)
+    pcall(function()
+        SG:SetCore("SendNotification", {
+            Title = "Konus Music",
+            Text = text,
+            Duration = 3
+        })
+    end)
+end
+
+-- Создаём GUI
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Parent = (gethui and gethui()) or game:GetService("CoreGui")
+if syn and syn.protect_gui then syn.protect_gui(ScreenGui) end
+
+-- Главный фрейм
+local Main = Instance.new("Frame")
+Main.Size = UDim2.new(0, 240, 0, 120)
+Main.Position = UDim2.new(0.5, -120, 0.5, -60)
+Main.BackgroundColor3 = Color3.fromRGB(20, 20, 28)
+Main.BorderSizePixel = 0
+Main.Active = true
+Main.Draggable = true
+Main.Parent = ScreenGui
+
+local mc = Instance.new("UICorner", Main)
+mc.CornerRadius = UDim.new(0, 8)
+
+-- Заголовок
+local Title = Instance.new("TextLabel")
+Title.Size = UDim2.new(1, 0, 0, 28)
+Title.BackgroundColor3 = Color3.fromRGB(30, 30, 38)
+Title.BorderSizePixel = 0
+Title.Text = "🎵 Konus Music Player"
+Title.TextColor3 = Color3.fromRGB(255, 255, 255)
+Title.Font = Enum.Font.GothamBold
+Title.TextSize = 13
+Title.Parent = Main
+
+local tc = Instance.new("UICorner", Title)
+tc.CornerRadius = UDim.new(0, 8)
+local tcc = Instance.new("Frame")
+tcc.Size = UDim2.new(1, 0, 0.5, 0)
+tcc.Position = UDim2.new(0, 0, 0.5, 0)
+tcc.BackgroundColor3 = Color3.fromRGB(30, 30, 38)
+tcc.BorderSizePixel = 0
+tcc.Parent = Title
+
+-- Поле ввода ID
+local IDBox = Instance.new("TextBox")
+IDBox.Size = UDim2.new(1, -20, 0, 28)
+IDBox.Position = UDim2.new(0, 10, 0, 35)
+IDBox.BackgroundColor3 = Color3.fromRGB(35, 35, 45)
+IDBox.BorderSizePixel = 0
+IDBox.PlaceholderText = "Введите ID музыки..."
+IDBox.PlaceholderColor3 = Color3.fromRGB(150, 150, 150)
+IDBox.Text = ""
+IDBox.TextColor3 = Color3.fromRGB(255, 255, 255)
+IDBox.Font = Enum.Font.Gotham
+IDBox.TextSize = 12
+IDBox.ClearTextOnFocus = false
+IDBox.Parent = Main
+
+local ibc = Instance.new("UICorner", IDBox)
+ibc.CornerRadius = UDim.new(0, 5)
+
+-- Кнопка ИГРАТЬ
+local PlayBtn = Instance.new("TextButton")
+PlayBtn.Size = UDim2.new(0, 100, 0, 30)
+PlayBtn.Position = UDim2.new(0, 10, 0, 72)
+PlayBtn.BackgroundColor3 = Color3.fromRGB(60, 180, 60)
+PlayBtn.Text = "▶ ИГРАТЬ"
+PlayBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+PlayBtn.Font = Enum.Font.GothamBold
+PlayBtn.TextSize = 12
+PlayBtn.BorderSizePixel = 0
+PlayBtn.Parent = Main
+
+local pbc = Instance.new("UICorner", PlayBtn)
+pbc.CornerRadius = UDim.new(0, 5)
+
+-- Кнопка СТОП
+local StopBtn = Instance.new("TextButton")
+StopBtn.Size = UDim2.new(0, 100, 0, 30)
+StopBtn.Position = UDim2.new(1, -110, 0, 72)
+StopBtn.BackgroundColor3 = Color3.fromRGB(220, 50, 50)
+StopBtn.Text = "⏹ СТОП"
+StopBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+StopBtn.Font = Enum.Font.GothamBold
+StopBtn.TextSize = 12
+StopBtn.BorderSizePixel = 0
+StopBtn.Parent = Main
+
+local sbc = Instance.new("UICorner", StopBtn)
+sbc.CornerRadius = UDim.new(0, 5)
+
+-- Функция: найти все динамики на сервере
+local function GetAllSpeakers()
+    local speakers = {}
+    
+    -- Ищем Sound в workspace
+    for _, v in pairs(workspace:GetDescendants()) do
+        if v:IsA("Sound") then
+            table.insert(speakers, v)
+        end
+    end
+    
+    -- Ищем в Radio, Boombox, MusicPlayer итд
+    for _, v in pairs(workspace:GetDescendants()) do
+        if v:IsA("Model") and (v.Name:lower():find("radio") or v.Name:lower():find("boombox") or v.Name:lower():find("speaker") or v.Name:lower():find("music")) then
+            for _, s in pairs(v:GetDescendants()) do
+                if s:IsA("Sound") then
+                    table.insert(speakers, s)
+                end
+            end
+        end
+    end
+    
+    -- Ищем в ReplicatedStorage (иногда там хранятся)
+    for _, v in pairs(game:GetService("ReplicatedStorage"):GetDescendants()) do
+        if v:IsA("Sound") then
+            table.insert(speakers, v)
+        end
+    end
+    
+    return speakers
+end
+
+-- Функция: создать глобальный звук
+local function PlayGlobalSound(id)
+    local soundId = "rbxassetid://" .. id
+    
+    -- Способ 1: Спавним Boombox/Radio в workspace
+    local boombox = Instance.new("Sound")
+    boombox.SoundId = soundId
+    boombox.Volume = 10
+    boombox.Playing = true
+    boombox.Parent = workspace
+    boombox.Name = "KonusMusic"
+    
+    -- Размещаем звук на всех игроках для максимального покрытия
+    spawn(function()
+        while boombox.Playing do
+            for _, plr in pairs(Players:GetPlayers()) do
+                if plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") then
+                    -- Двигаем звук к игрокам для глобального слышимости
+                    boombox.Position = plr.Character.HumanoidRootPart.Position
+                    wait(0.1)
+                end
+            end
+            wait(0.5)
+        end
+    end)
+    
+    -- Способ 2: Пытаемся найти существующие динамики и включить в них
+    local speakers = GetAllSpeakers()
+    if #speakers > 0 then
+        for _, speaker in pairs(speakers) do
+            pcall(function()
+                speaker.SoundId = soundId
+                speaker.Volume = 10
+                speaker:Play()
+            end)
+        end
+        Notify("Найдено динамиков: " .. #speakers)
+    end
+    
+    return boombox
+end
+
+-- Текущий звук
+local currentSound = nil
+
+-- Кнопка ИГРАТЬ
+PlayBtn.MouseButton1Click:Connect(function()
+    local id = IDBox.Text
+    if id == "" then
+        Notify("Введите ID музыки!")
+        return
+    end
+    
+    -- Убираем всё кроме цифр
+    id = id:gsub("%D", "")
+    
+    if id == "" then
+        Notify("Неверный ID!")
+        return
+    end
+    
+    -- Останавливаем предыдущий звук
+    if currentSound then
+        pcall(function() currentSound:Stop() end)
+        pcall(function() currentSound:Destroy() end)
+    end
+    
+    -- Запускаем новый
+    currentSound = PlayGlobalSound(id)
+    Notify("🎵 Играет: " .. id)
+    
+    -- Авто-остановка через 5 минут
+    spawn(function()
+        wait(300)
+        if currentSound then
+            pcall(function() currentSound:Stop() end)
+            pcall(function() currentSound:Destroy() end)
+            currentSound = nil
+        end
+    end)
+end)
+
+-- Кнопка СТОП
+StopBtn.MouseButton1Click:Connect(function()
+    if currentSound then
+        pcall(function() currentSound:Stop() end)
+        pcall(function() currentSound:Destroy() end)
+        currentSound = nil
+    end
+    
+    -- Останавливаем все звуки KonusMusic
+    for _, v in pairs(workspace:GetDescendants()) do
+        if v:IsA("Sound") and v.Name == "KonusMusic" then
+            pcall(function() v:Stop() end)
+            pcall(function() v:Destroy() end)
+        end
+    end
+    
+    -- Останавливаем динамики
+    local speakers = GetAllSpeakers()
+    for _, speaker in pairs(speakers) do
+        pcall(function() speaker:Stop() end)
+    end
+    
+    Notify("⏹ Музыка остановлена")
+end)
+
+-- Популярные ID для быстрого ввода
+Notify("Konus Music Player загружен!")
+Notify("Пример ID: 9120386436")
