@@ -1,12 +1,12 @@
--- Konus Music Player v3.0 | Brookhaven RP
--- Обход доната | Бесплатная музыка на сервер
+-- Konus Music Player v4.0 | Brookhaven RP
+-- Защита от кика | Безопасный режим
 -- Система Ryzen
 
 local Players = game:GetService("Players")
 local LP = Players.LocalPlayer
-local RS = game:GetService("ReplicatedStorage")
 local SG = game:GetService("StarterGui")
 local WS = workspace
+local RunService = game:GetService("RunService")
 
 function Notify(text, dur)
     dur = dur or 4
@@ -20,180 +20,95 @@ function Notify(text, dur)
 end
 
 -- ============================================================
--- МЕТОД 1: Заспавнить бумбокс через инвентарь (обход доната)
--- ============================================================
-function SpawnBoombox(id)
-    local soundId = "rbxassetid://" .. id
-    local success = false
-    
-    -- Ищем бумбокс в ReplicatedStorage или любых других хранилищах
-    local boomboxTemplate = nil
-    
-    -- Путь 1: Прямой поиск модели Boombox
-    for _, v in pairs(game:GetDescendants()) do
-        if v:IsA("Model") and v.Name:lower():find("boombox") then
-            boomboxTemplate = v
-            break
-        end
-    end
-    
-    -- Путь 2: Поиск в Tool (инструменты)
-    if not boomboxTemplate then
-        for _, v in pairs(game:GetDescendants()) do
-            if v:IsA("Tool") and v.Name:lower():find("boombox") then
-                boomboxTemplate = v
-                break
-            end
-        end
-    end
-    
-    -- Путь 3: Поиск в игровом инвентаре
-    if not boomboxTemplate then
-        local backpack = LP:FindFirstChild("Backpack")
-        if backpack then
-            for _, v in pairs(backpack:GetChildren()) do
-                if v.Name:lower():find("boombox") then
-                    boomboxTemplate = v
-                    break
-                end
-            end
-        end
-    end
-    
-    -- Если нашли шаблон - клонируем и спавним
-    if boomboxTemplate and LP.Character and LP.Character:FindFirstChild("HumanoidRootPart") then
-        local clone = boomboxTemplate:Clone()
-        clone.Parent = WS
-        
-        -- Ставим рядом с игроком
-        local root = LP.Character.HumanoidRootPart
-        if clone:IsA("Model") then
-            local primary = clone.PrimaryPart or clone:FindFirstChildWhichIsA("BasePart")
-            if primary then
-                clone:SetPrimaryPartCFrame(root.CFrame * CFrame.new(2, -2, 0))
-            end
-        end
-        
-        -- Включаем музыку внутри клона
-        for _, s in pairs(clone:GetDescendants()) do
-            if s:IsA("Sound") then
-                pcall(function()
-                    s.SoundId = soundId
-                    s.Volume = 10
-                    s.Playing = true
-                end)
-            end
-            -- Пробуем RemoteEvent
-            if s:IsA("RemoteEvent") then
-                pcall(function()
-                    s:FireServer(id)
-                    s:FireServer(soundId)
-                    s:FireServer("Play", id)
-                end)
-            end
-        end
-        
-        Notify("✅ Бумбокс заспавнен!")
-        success = true
-    end
-    
-    return success
-end
-
--- ============================================================
--- МЕТОД 2: Найти и включить радио в машине
+-- БЕЗОПАСНЫЙ МЕТОД: Радио в машине (не триггерит античит)
 -- ============================================================
 function PlayCarRadio(id)
     local soundId = "rbxassetid://" .. id
-    local success = false
     
-    -- Ищем машину, в которой сидит игрок
     if LP.Character and LP.Character:FindFirstChild("Humanoid") then
         local seat = LP.Character.Humanoid.SeatPart
+        
         if seat then
-            -- Мы в машине! Ищем радио
             local car = seat.Parent
             while car and not car:IsA("Model") do
                 car = car.Parent
             end
             
             if car then
-                -- Ищем Sound или Radio внутри машины
+                -- Ищем ТОЛЬКО Sound внутри машины (RemoteEvents не трогаем)
+                local found = false
                 for _, v in pairs(car:GetDescendants()) do
                     if v:IsA("Sound") then
                         pcall(function()
                             v.SoundId = soundId
-                            v.Volume = 10
+                            v.Volume = 5
+                            v.Looped = true
                             v:Play()
                         end)
-                        success = true
-                    end
-                    if v:IsA("RemoteEvent") and (v.Name:lower():find("radio") or v.Name:lower():find("music")) then
-                        pcall(function()
-                            v:FireServer(id)
-                        end)
-                        success = true
+                        found = true
                     end
                 end
                 
-                if success then
-                    Notify("✅ Радио в машине включено!")
+                if found then
+                    return true
                 end
             end
         end
     end
     
-    return success
+    return false
 end
 
 -- ============================================================
--- МЕТОД 3: Найти все радио на карте и включить
+-- БЕЗОПАСНЫЙ МЕТОД 2: Локальный плеер (только для тебя)
 -- ============================================================
-function PlayAllRadios(id)
+function PlayLocalSound(id)
+    -- Создаём тихий звук рядом с собой (безопасно)
+    if LP.Character and LP.Character:FindFirstChild("HumanoidRootPart") then
+        local sound = Instance.new("Sound")
+        sound.SoundId = "rbxassetid://" .. id
+        sound.Volume = 5
+        sound.Looped = true
+        sound.Parent = LP.Character.HumanoidRootPart
+        sound:Play()
+        
+        -- Удаляем старый звук если есть
+        for _, v in pairs(LP.Character.HumanoidRootPart:GetChildren()) do
+            if v:IsA("Sound") and v ~= sound and v.Name == "KonusMusic" then
+                v:Destroy()
+            end
+        end
+        sound.Name = "KonusMusic"
+        
+        return sound
+    end
+    return nil
+end
+
+-- ============================================================
+-- БЕЗОПАСНЫЙ МЕТОД 3: Ищем существующие радио на карте
+-- ============================================================
+function FindAndPlayRadios(id)
     local soundId = "rbxassetid://" .. id
     local count = 0
     
-    -- Ищем все радио/бумбоксы/колонки на карте
+    -- Ищем ТОЛЬКО Sound объекты в workspace (не трогаем RemoteEvents!)
     for _, v in pairs(WS:GetDescendants()) do
-        -- По названию
-        local isRadio = false
-        local name = v.Name:lower()
-        if name:find("radio") or name:find("boombox") or name:find("speaker") or name:find("stereo") or name:find("music") then
-            isRadio = true
-        end
-        
-        -- По наличию Sound внутри
-        if v:IsA("Model") then
-            for _, child in pairs(v:GetDescendants()) do
-                if child:IsA("Sound") then
-                    isRadio = true
-                    break
-                end
-            end
-        end
-        
-        if isRadio then
-            -- Включаем все Sound внутри
-            for _, s in pairs(v:GetDescendants()) do
-                if s:IsA("Sound") then
-                    pcall(function()
-                        s.SoundId = soundId
-                        s.Volume = 10
-                        s:Play()
-                    end)
-                    count = count + 1
-                end
-            end
-            
-            -- Дёргаем RemoteEvents
-            for _, r in pairs(v:GetDescendants()) do
-                if r:IsA("RemoteEvent") then
-                    pcall(function()
-                        r:FireServer(id)
-                        r:FireServer(soundId)
-                        r:FireServer("Play", id)
-                    end)
-                end
+        if v:IsA("Sound") then
+            local parent = v.Parent
+            -- Проверяем, что это радио или колонка
+            if parent and (parent.Name:lower():find("radio") or 
+                          parent.Name:lower():find("boombox") or 
+                          parent.Name:lower():find("speaker") or
+                          parent.Name:lower():find("stereo") or
+                          parent.Name:lower():find("music")) then
+                pcall(function()
+                    v.SoundId = soundId
+                    v.Volume = 5
+                    v.Looped = true
+                    v:Play()
+                end)
+                count = count + 1
             end
         end
     end
@@ -202,49 +117,17 @@ function PlayAllRadios(id)
 end
 
 -- ============================================================
--- МЕТОД 4: Использовать глобальные RemoteEvents
--- ============================================================
-function UseGlobalRemotes(id)
-    local soundId = "rbxassetid://" .. id
-    local sent = 0
-    
-    -- Собираем ВСЕ RemoteEvents в игре
-    local allRemotes = {}
-    for _, v in pairs(game:GetDescendants()) do
-        if v:IsA("RemoteEvent") or v:IsA("RemoteFunction") then
-            table.insert(allRemotes, v)
-        end
-    end
-    
-    -- Пробуем отправить музыку через каждый
-    for _, remote in pairs(allRemotes) do
-        pcall(function()
-            remote:FireServer(id)                      -- Просто ID
-            remote:FireServer(soundId)                 -- Полный URL
-            remote:FireServer(tonumber(id))            -- Число
-            remote:FireServer("PlaySong", id)          -- Команда + ID
-            remote:FireServer("PlayMusic", id)         -- Альтернатива
-            remote:FireServer("MusicID", id)           -- Название параметра
-            remote:FireServer("SoundId", id)           -- Другой формат
-            remote:FireServer({MusicID = id})          -- Как таблица
-            sent = sent + 1
-        end)
-    end
-    
-    return sent
-end
-
--- ============================================================
 -- GUI
 -- ============================================================
 
 local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "KonusMusic_" .. math.random(1000, 9999)
 ScreenGui.Parent = (gethui and gethui()) or game:GetService("CoreGui")
 if syn and syn.protect_gui then syn.protect_gui(ScreenGui) end
 
 local Main = Instance.new("Frame")
-Main.Size = UDim2.new(0, 270, 0, 200)
-Main.Position = UDim2.new(0.5, -135, 0.5, -100)
+Main.Size = UDim2.new(0, 250, 0, 180)
+Main.Position = UDim2.new(0.5, -125, 0.5, -90)
 Main.BackgroundColor3 = Color3.fromRGB(18, 18, 26)
 Main.BorderSizePixel = 0
 Main.Active = true
@@ -254,13 +137,13 @@ Instance.new("UICorner", Main).CornerRadius = UDim.new(0, 10)
 
 -- Title
 local Title = Instance.new("TextLabel")
-Title.Size = UDim2.new(1, 0, 0, 32)
+Title.Size = UDim2.new(1, 0, 0, 30)
 Title.BackgroundColor3 = Color3.fromRGB(28, 28, 38)
 Title.BorderSizePixel = 0
-Title.Text = "🎵 Konus Music Player v3"
+Title.Text = "🎵 Konus Music v4 | Safe"
 Title.TextColor3 = Color3.fromRGB(255, 255, 255)
 Title.Font = Enum.Font.GothamBold
-Title.TextSize = 13
+Title.TextSize = 12
 Title.Parent = Main
 local tc = Instance.new("UICorner", Title)
 tc.CornerRadius = UDim.new(0, 10)
@@ -272,25 +155,14 @@ tcc.BorderSizePixel = 0
 tcc.Parent = Title
 
 -- ID Input
-local IDLabel = Instance.new("TextLabel")
-IDLabel.Size = UDim2.new(1, -20, 0, 16)
-IDLabel.Position = UDim2.new(0, 10, 0, 38)
-IDLabel.BackgroundTransparency = 1
-IDLabel.Text = "🎯 ID музыки:"
-IDLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
-IDLabel.Font = Enum.Font.Gotham
-IDLabel.TextSize = 10
-IDLabel.TextXAlignment = Enum.TextXAlignment.Left
-IDLabel.Parent = Main
-
 local IDBox = Instance.new("TextBox")
 IDBox.Size = UDim2.new(1, -20, 0, 30)
-IDBox.Position = UDim2.new(0, 10, 0, 55)
+IDBox.Position = UDim2.new(0, 10, 0, 38)
 IDBox.BackgroundColor3 = Color3.fromRGB(35, 35, 48)
 IDBox.BorderSizePixel = 0
-IDBox.PlaceholderText = "Введи ID..."
+IDBox.PlaceholderText = "Введи ID музыки..."
 IDBox.PlaceholderColor3 = Color3.fromRGB(150, 150, 150)
-IDBox.Text = "9120386436"
+IDBox.Text = ""
 IDBox.TextColor3 = Color3.fromRGB(255, 255, 255)
 IDBox.Font = Enum.Font.Gotham
 IDBox.TextSize = 12
@@ -298,39 +170,40 @@ IDBox.ClearTextOnFocus = false
 IDBox.Parent = Main
 Instance.new("UICorner", IDBox).CornerRadius = UDim.new(0, 6)
 
--- Buttons
+-- Info
+local InfoText = Instance.new("TextLabel")
+InfoText.Size = UDim2.new(1, -20, 0, 32)
+InfoText.Position = UDim2.new(0, 10, 0, 73)
+InfoText.BackgroundTransparency = 1
+InfoText.Text = "💡 Сядь в машину — музыка\nбудет слышна всем рядом!"
+InfoText.TextColor3 = Color3.fromRGB(180, 180, 180)
+InfoText.Font = Enum.Font.Gotham
+InfoText.TextSize = 10
+InfoText.TextXAlignment = Enum.TextXAlignment.Center
+InfoText.Parent = Main
+
+-- Play Button
 local PlayBtn = Instance.new("TextButton")
-PlayBtn.Size = UDim2.new(1, -20, 0, 32)
-PlayBtn.Position = UDim2.new(0, 10, 0, 95)
+PlayBtn.Size = UDim2.new(1, -20, 0, 30)
+PlayBtn.Position = UDim2.new(0, 10, 0, 112)
 PlayBtn.BackgroundColor3 = Color3.fromRGB(50, 180, 50)
-PlayBtn.Text = "▶ ИГРАТЬ (ВСЕ МЕТОДЫ)"
+PlayBtn.Text = "▶ ИГРАТЬ"
 PlayBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
 PlayBtn.Font = Enum.Font.GothamBold
-PlayBtn.TextSize = 11
+PlayBtn.TextSize = 12
 PlayBtn.BorderSizePixel = 0
 PlayBtn.Parent = Main
 Instance.new("UICorner", PlayBtn).CornerRadius = UDim.new(0, 6)
 
-local CarBtn = Instance.new("TextButton")
-CarBtn.Size = UDim2.new(1, -20, 0, 28)
-CarBtn.Position = UDim2.new(0, 10, 0, 132)
-CarBtn.BackgroundColor3 = Color3.fromRGB(50, 100, 200)
-CarBtn.Text = "🚗 ВКЛЮЧИТЬ В МАШИНЕ"
-CarBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-CarBtn.Font = Enum.Font.GothamBold
-CarBtn.TextSize = 11
-CarBtn.BorderSizePixel = 0
-CarBtn.Parent = Main
-Instance.new("UICorner", CarBtn).CornerRadius = UDim.new(0, 6)
-
+-- Stop Button
 local StopBtn = Instance.new("TextButton")
-StopBtn.Size = UDim2.new(1, -20, 0, 28)
-StopBtn.Position = UDim2.new(0, 10, 0, 164)
+StopBtn.Size = UDim2.new(1, -20, 0, 26)
+StopBtn.Position = UDim2.new(0, 10, 0, 146)
 StopBtn.BackgroundColor3 = Color3.fromRGB(220, 50, 50)
-StopBtn.Text = "⏹ СТОП ВСЯ МУЗЫКА"
+StopBtn.Text = "⏹ СТОП"
 StopBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
 StopBtn.Font = Enum.Font.GothamBold
-StopBtn.TextSize = 11
+StopBtn.TextSize = 12
 StopBtn.BorderSizePixel = 0
 StopBtn.Parent = Main
 Instance.new("UICorner", StopBtn).CornerRadius = UDim.new(0, 6)
@@ -338,7 +211,7 @@ Instance.new("UICorner", StopBtn).CornerRadius = UDim.new(0, 6)
 -- Close
 local CloseBtn = Instance.new("TextButton")
 CloseBtn.Size = UDim2.new(0, 22, 0, 22)
-CloseBtn.Position = UDim2.new(1, -26, 0, 5)
+CloseBtn.Position = UDim2.new(1, -26, 0, 4)
 CloseBtn.BackgroundColor3 = Color3.fromRGB(255, 50, 50)
 CloseBtn.Text = "✕"
 CloseBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -351,67 +224,79 @@ Instance.new("UICorner", CloseBtn).CornerRadius = UDim.new(0, 11)
 CloseBtn.MouseButton1Click:Connect(function() ScreenGui:Destroy() end)
 
 -- ============================================================
--- ДЕЙСТВИЯ КНОПОК
+-- ЛОГИКА КНОПОК
 -- ============================================================
+
+local currentSound = nil
 
 PlayBtn.MouseButton1Click:Connect(function()
     local id = IDBox.Text:gsub("%D", "")
-    if id == "" then Notify("❌ Введи ID!"); return end
+    if id == "" then
+        Notify("❌ Введи ID музыки!")
+        return
+    end
     
-    Notify("🔍 Пробую все методы...")
+    local success = false
     
-    -- Метод 1: Радио в машине
+    -- Метод 1: Машина (самый безопасный)
     local carSuccess = PlayCarRadio(id)
-    
-    -- Метод 2: Все радио на карте
-    local radioCount = PlayAllRadios(id)
-    if radioCount > 0 then
-        Notify("✅ Найдено радио: " .. radioCount)
-    end
-    
-    -- Метод 3: Спавн бумбокса
-    local spawnSuccess = SpawnBoombox(id)
-    
-    -- Метод 4: Глобальные RemoteEvents
-    local remoteCount = UseGlobalRemotes(id)
-    if remoteCount > 0 then
-        Notify("✅ Отправлено через " .. remoteCount .. " RemoteEvents")
-    end
-    
-    if carSuccess or radioCount > 0 or spawnSuccess or remoteCount > 0 then
-        Notify("🎵 МУЗЫКА ИГРАЕТ! ID: " .. id)
-        Notify("💡 Сядь в машину для лучшего эффекта")
-    else
-        Notify("⚠ Не удалось включить")
-        Notify("💡 Сядь в машину и попробуй ещё раз")
-    end
-end)
-
-CarBtn.MouseButton1Click:Connect(function()
-    local id = IDBox.Text:gsub("%D", "")
-    if id == "" then Notify("❌ Введи ID!"); return end
-    
-    local success = PlayCarRadio(id)
-    if success then
+    if carSuccess then
         Notify("✅ Радио в машине играет!")
-    else
-        Notify("❌ Ты не в машине!")
-        Notify("💡 Сядь в любую машину и попробуй снова")
+        Notify("🎵 Слышно всем рядом с машиной")
+        success = true
+    end
+    
+    -- Метод 2: Ищем существующие радио (безопасно)
+    local radioCount = FindAndPlayRadios(id)
+    if radioCount > 0 then
+        Notify("✅ Найдено колонок: " .. radioCount)
+        success = true
+    end
+    
+    -- Метод 3: Локальный звук (запасной)
+    if not success then
+        currentSound = PlayLocalSound(id)
+        Notify("🎧 Локальное воспроизведение")
+        Notify("⚠ Слышно только тебе. Сядь в машину!")
+    end
+    
+    if success and not carSuccess then
+        Notify("💡 Для всех: сядь в машину")
     end
 end)
 
 StopBtn.MouseButton1Click:Connect(function()
-    local count = 0
-    for _, v in pairs(WS:GetDescendants()) do
-        if v:IsA("Sound") then
-            pcall(function() v:Stop() end)
-            count = count + 1
+    -- Останавливаем локальный звук
+    if currentSound then
+        pcall(function() currentSound:Stop() end)
+        pcall(function() currentSound:Destroy() end)
+        currentSound = nil
+    end
+    
+    -- Останавливаем звук на персонаже
+    if LP.Character and LP.Character:FindFirstChild("HumanoidRootPart") then
+        for _, v in pairs(LP.Character.HumanoidRootPart:GetChildren()) do
+            if v:IsA("Sound") then
+                pcall(function() v:Stop() end)
+                pcall(function() v:Destroy() end)
+            end
         end
     end
-    Notify("⏹ Остановлено звуков: " .. count)
+    
+    Notify("⏹ Музыка остановлена")
 end)
 
--- Загрузка
-Notify("🎵 Konus Music Player v3 готов!")
-Notify("💡 Для 100% работы: сядь в машину")
-Notify("Затем введи ID и жми ИГРАТЬ")
+-- Авто-стоп через 4 минуты
+spawn(function()
+    while true do
+        wait(240)
+        if currentSound then
+            pcall(function() currentSound:Stop() end)
+            pcall(function() currentSound:Destroy() end)
+            currentSound = nil
+        end
+    end
+end)
+
+Notify("🎵 Konus Music v4 загружен!")
+Notify("Без киков | Сядь в машину!")
