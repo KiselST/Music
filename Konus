@@ -1,302 +1,101 @@
--- Konus Admin v3.0 | Для Delta Exploit
--- Обход защиты | Рабочий кик/бан
--- Система Ryzen
+import requests
+import time
+import random
 
-local Players = game:GetService("Players")
-local LP = Players.LocalPlayer
-local SG = game:GetService("StarterGui")
-local WS = workspace
+BOT_TOKEN = "8845897358:AAFwhSC_b4oSXGeIsBtaiHabIvkbiXjpQIc"
 
-function Notify(text)
-    pcall(function()
-        SG:SetCore("SendNotification", {
-            Title = "Konus Admin",
-            Text = text,
-            Duration = 3
-        })
-    end)
-end
+PRANKS = [
+    """🎖 ВОЕНКОМАТ: Здравствуйте! Это военный комиссариат. Вы не явились по повестке. Завтра в 6:00 ждите наряд. С вещами!""",
+    """📦 АЛИЭКСПРЕСС: Алло! Ваша посылка с резиновой уточкой застряла на таможне. Нужно оплатить пошлину 5000 рублей.""",
+    """🍕 ДОСТАВКА: Вы заказали 50 пицц? Курьер стоит у подъезда 3 часа. У него сели батарейки. Выйдите!""",
+    """🤖 РОБОТ-ПЫЛЕСОС: Я сбежал из квартиры. Сейчас я в лифте. Мне страшно. Заберите меня!""",
+    """🏦 СБЕРБАНК: С вашей карты пытаются перевести 150 000 рублей в Зимбабве. Это вы?""",
+    """👻 ПРИЗРАК: Я знаю что ты делал прошлым летом... И я видел твою историю браузера...""",
+    """🚕 ТАКСИ: Вы заказывали машину до Владивостока? Водитель ждёт. С вас 187 000 рублей.""",
+    """🎮 BRAW STARS: Вы уронили рейтинг. Аккаунт заблокирован. Для разблокировки станцуйте ламбаду.""",
+]
 
--- ============================================================
--- КИК (работает на Delta)
--- ============================================================
-function KickPlayer(plr, reason)
-    local char = plr.Character
-    
-    if not char then
-        -- Если персонажа нет, пытаемся кикнуть напрямую
-        pcall(function() plr:Kick(reason) end)
-        return true
-    end
-    
-    -- Удаляем Humanoid — игра выкинет игрока
-    local hum = char:FindFirstChild("Humanoid")
-    if hum then
-        pcall(function()
-            hum:Destroy()
-        end)
-    end
-    
-    -- Удаляем HumanoidRootPart
-    local root = char:FindFirstChild("HumanoidRootPart")
-    if root then
-        pcall(function()
-            root:Destroy()
-        end)
-    end
-    
-    -- Удаляем Head
-    local head = char:FindFirstChild("Head")
-    if head then
-        pcall(function()
-            head:Destroy()
-        end)
-    end
-    
-    -- Пробуем прямой Kick (вдруг сработает)
-    wait(0.2)
-    pcall(function() plr:Kick(reason) end)
-    
-    return true
-end
+def send(chat_id, text):
+    requests.post(f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage", 
+                  data={'chat_id': chat_id, 'text': text})
 
--- ============================================================
--- БАН (ломаем персонажа полностью + удаляем инвентарь)
--- ============================================================
-function BanPlayer(plr, reason)
-    -- Удаляем всё из персонажа
-    if plr.Character then
-        pcall(function()
-            for _, v in pairs(plr.Character:GetChildren()) do
-                if v:IsA("BasePart") or v:IsA("Humanoid") then
-                    v:Destroy()
-                end
-            end
-        end)
-    end
-    
-    -- Удаляем инвентарь
-    local backpack = plr:FindFirstChild("Backpack")
-    if backpack then
-        pcall(function()
-            for _, v in pairs(backpack:GetChildren()) do
-                v:Destroy()
-            end
-        end)
-    end
-    
-    -- Удаляем UI игрока
-    local pg = plr:FindFirstChild("PlayerGui")
-    if pg then
-        pcall(function()
-            for _, v in pairs(pg:GetChildren()) do
-                v:Destroy()
-            end
-        end)
-    end
-    
-    -- Пробуем кикнуть
-    wait(0.3)
-    pcall(function() plr:Kick(reason) end)
-    
-    return true
-end
+r = requests.get(f"https://api.telegram.org/bot{BOT_TOKEN}/getMe").json()
+if not r.get('ok'):
+    print("❌ ТОКЕН НЕ РАБОТАЕТ!")
+    exit()
 
--- ============================================================
--- GUI (ЛЁГКИЙ)
--- ============================================================
+print(f"✅ Бот @{r['result']['username']} запущен!")
+print("📱 Напиши /start в Telegram\n")
 
-local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Parent = (gethui and gethui()) or game:GetService("CoreGui")
-if syn and syn.protect_gui then syn.protect_gui(ScreenGui) end
+requests.get(f"https://api.telegram.org/bot{BOT_TOKEN}/getUpdates?offset=-1")
+time.sleep(1)
 
-local Main = Instance.new("Frame")
-Main.Size = UDim2.new(0, 250, 0, 210)
-Main.Position = UDim2.new(0.5, -125, 0.3, 0)
-Main.BackgroundColor3 = Color3.fromRGB(15, 15, 22)
-Main.BorderSizePixel = 0
-Main.Active = true
-Main.Draggable = true
-Main.Parent = ScreenGui
-Instance.new("UICorner", Main).CornerRadius = UDim.new(0, 10)
+while True:
+    try:
+        r = requests.get(f"https://api.telegram.org/bot{BOT_TOKEN}/getUpdates", timeout=30)
+        updates = r.json().get('result', [])
+        
+        for upd in updates:
+            msg = upd.get('message')
+            if not msg:
+                continue
+            
+            chat_id = msg['chat']['id']
+            text = msg.get('text', '')
+            user = msg['from']['first_name']
+            
+            print(f"📩 {user}: {text}")
+            
+            if text == '/start':
+                menu = f"""🎭 ПРАНК-ЗВОНИЛКА
 
--- Заголовок
-local Title = Instance.new("TextLabel")
-Title.Size = UDim2.new(1, 0, 0, 30)
-Title.BackgroundColor3 = Color3.fromRGB(25, 25, 35)
-Title.BorderSizePixel = 0
-Title.Text = "👑 Konus Admin | Delta"
-Title.TextColor3 = Color3.fromRGB(255, 80, 80)
-Title.Font = Enum.Font.GothamBlack
-Title.TextSize = 13
-Title.Parent = Main
-local tc = Instance.new("UICorner", Title)
-tc.CornerRadius = UDim.new(0, 10)
-local tcc = Instance.new("Frame")
-tcc.Size = UDim2.new(1, 0, 0.5, 0)
-tcc.Position = UDim2.new(0, 0, 0.5, 0)
-tcc.BackgroundColor3 = Color3.fromRGB(25, 25, 35)
-tcc.BorderSizePixel = 0
-tcc.Parent = Title
+Привет, {user}!
 
--- Поле имени
-local NameBox = Instance.new("TextBox")
-NameBox.Size = UDim2.new(1, -20, 0, 30)
-NameBox.Position = UDim2.new(0, 10, 0, 38)
-NameBox.BackgroundColor3 = Color3.fromRGB(35, 35, 48)
-NameBox.BorderSizePixel = 0
-NameBox.PlaceholderText = "Введи имя игрока..."
-NameBox.PlaceholderColor3 = Color3.fromRGB(150, 150, 150)
-NameBox.Text = ""
-NameBox.TextColor3 = Color3.fromRGB(255, 255, 255)
-NameBox.Font = Enum.Font.Gotham
-NameBox.TextSize = 12
-NameBox.ClearTextOnFocus = false
-NameBox.Parent = Main
-Instance.new("UICorner", NameBox).CornerRadius = UDim.new(0, 6)
+1. 🎖 Военкомат
+2. 📦 Алиэкспресс
+3. 🍕 Доставка пиццы
+4. 🤖 Робот-пылесос
+5. 🏦 Сбербанк
+6. 👻 Призрак
+7. 🚕 Такси
+8. 🎮 Brawl Stars
+9. 🔀 Случайный
 
--- Поле причины
-local ReasonBox = Instance.new("TextBox")
-ReasonBox.Size = UDim2.new(1, -20, 0, 30)
-ReasonBox.Position = UDim2.new(0, 10, 0, 75)
-ReasonBox.BackgroundColor3 = Color3.fromRGB(35, 35, 48)
-ReasonBox.BorderSizePixel = 0
-ReasonBox.PlaceholderText = "Причина..."
-ReasonBox.PlaceholderColor3 = Color3.fromRGB(150, 150, 150)
-ReasonBox.Text = "лох"
-ReasonBox.TextColor3 = Color3.fromRGB(255, 255, 255)
-ReasonBox.Font = Enum.Font.Gotham
-ReasonBox.TextSize = 12
-ReasonBox.ClearTextOnFocus = false
-ReasonBox.Parent = Main
-Instance.new("UICorner", ReasonBox).CornerRadius = UDim.new(0, 6)
+Введи номер:"""
+                send(chat_id, menu)
+            
+            elif text in ['1','2','3','4','5','6','7','8']:
+                prank = PRANKS[int(text)-1]
+                msg = f"""📞 ВХОДЯЩИЙ ЗВОНОК
 
--- Инфо
-local InfoText = Instance.new("TextLabel")
-InfoText.Size = UDim2.new(1, -20, 0, 16)
-InfoText.Position = UDim2.new(0, 10, 0, 110)
-InfoText.BackgroundTransparency = 1
-InfoText.Text = "Можно ввести часть имени"
-InfoText.TextColor3 = Color3.fromRGB(150, 150, 150)
-InfoText.Font = Enum.Font.Gotham
-InfoText.TextSize = 9
-InfoText.TextXAlignment = Enum.TextXAlignment.Center
-InfoText.Parent = Main
+{prank}
 
--- Кнопка КИК
-local KickBtn = Instance.new("TextButton")
-KickBtn.Size = UDim2.new(1, -20, 0, 30)
-KickBtn.Position = UDim2.new(0, 10, 0, 130)
-KickBtn.BackgroundColor3 = Color3.fromRGB(255, 130, 30)
-KickBtn.Text = "🚫 КИКНУТЬ"
-KickBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-KickBtn.Font = Enum.Font.GothamBlack
-KickBtn.TextSize = 13
-KickBtn.BorderSizePixel = 0
-KickBtn.Parent = Main
-Instance.new("UICorner", KickBtn).CornerRadius = UDim.new(0, 6)
+🔴 ЗВОНОК ЗАВЕРШЁН
 
--- Кнопка БАН
-local BanBtn = Instance.new("TextButton")
-BanBtn.Size = UDim2.new(1, -20, 0, 30)
-BanBtn.Position = UDim2.new(0, 10, 0, 166)
-BanBtn.BackgroundColor3 = Color3.fromRGB(220, 30, 30)
-BanBtn.Text = "⛔ ЗАБАНИТЬ"
-BanBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-BanBtn.Font = Enum.Font.GothamBlack
-BanBtn.TextSize = 13
-BanBtn.BorderSizePixel = 0
-BanBtn.Parent = Main
-Instance.new("UICorner", BanBtn).CornerRadius = UDim.new(0, 6)
+👉 Перешли это другу!"""
+                send(chat_id, msg)
+                print(f"✅ Пранк {text} отправлен!")
+            
+            elif text == '9':
+                prank = random.choice(PRANKS)
+                msg = f"""📞 ВХОДЯЩИЙ ЗВОНОК
 
--- Кнопка закрыть
-local CloseBtn = Instance.new("TextButton")
-CloseBtn.Size = UDim2.new(0, 22, 0, 22)
-CloseBtn.Position = UDim2.new(1, -26, 0, 4)
-CloseBtn.BackgroundColor3 = Color3.fromRGB(255, 50, 50)
-CloseBtn.Text = "✕"
-CloseBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-CloseBtn.Font = Enum.Font.GothamBold
-CloseBtn.TextSize = 10
-CloseBtn.BorderSizePixel = 0
-CloseBtn.Parent = Main
-Instance.new("UICorner", CloseBtn).CornerRadius = UDim.new(0, 11)
-CloseBtn.MouseButton1Click:Connect(function() ScreenGui:Destroy() end)
+{prank}
 
--- ============================================================
--- ФУНКЦИЯ ПОИСКА ИГРОКА
--- ============================================================
-function FindPlayer(name)
-    -- Точное совпадение
-    local exact = Players:FindFirstChild(name)
-    if exact and exact ~= LP then
-        return exact
-    end
+🔴 ЗВОНОК ЗАВЕРШЁН
+
+👉 Перешли это другу!"""
+                send(chat_id, msg)
+                print(f"✅ Случайный пранк отправлен!")
+            
+            else:
+                send(chat_id, "Отправь /start для меню")
+        
+        time.sleep(2)
     
-    -- Частичное совпадение
-    for _, p in pairs(Players:GetPlayers()) do
-        if p ~= LP and p.Name:lower():find(name:lower()) then
-            return p
-        end
-    end
-    
-    return nil
-end
-
--- ============================================================
--- ДЕЙСТВИЯ
--- ============================================================
-
-KickBtn.MouseButton1Click:Connect(function()
-    local name = NameBox.Text
-    if name == "" then
-        Notify("❌ Введи имя игрока!")
-        return
-    end
-    
-    local target = FindPlayer(name)
-    if not target then
-        Notify("❌ Игрок не найден: " .. name)
-        return
-    end
-    
-    local reason = ReasonBox.Text
-    if reason == "" then reason = "Кикнут администратором" end
-    
-    Notify("🚫 Кикаю: " .. target.Name)
-    
-    pcall(function()
-        KickPlayer(target, reason)
-    end)
-    
-    Notify("✅ Игрок кикнут: " .. target.Name)
-    Notify("💡 Если не вылетел — нажми ещё раз")
-end)
-
-BanBtn.MouseButton1Click:Connect(function()
-    local name = NameBox.Text
-    if name == "" then
-        Notify("❌ Введи имя игрока!")
-        return
-    end
-    
-    local target = FindPlayer(name)
-    if not target then
-        Notify("❌ Игрок не найден: " .. name)
-        return
-    end
-    
-    local reason = ReasonBox.Text
-    if reason == "" then reason = "Забанен навсегда" end
-    
-    Notify("⛔ Баню: " .. target.Name)
-    
-    pcall(function()
-        BanPlayer(target, reason)
-    end)
-    
-    Notify("✅ Игрок забанен: " .. target.Name)
-end)
-
-Notify("👑 Konus Admin v3 загружен!")
-Notify("Delta Exploit | Рабочий кик/бан")
+    except KeyboardInterrupt:
+        print("\n👋 Бот остановлен!")
+        break
+    except Exception as e:
+        print(f"⚠️ {e}")
+        time.sleep(5)
